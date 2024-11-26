@@ -13,6 +13,6 @@
        ],
         "dest": "server.js"
       },
-      { "src": "/(.*)", "dest": "app.js" }
+      { "src": "/(.*)", "dest": "server.js" }
     ]
   }
