@@ -1,0 +1,31 @@
+GET http://localhost:5000/users
+Authorization: Bearer
+
+
+###
+POST http://localhost:5000/users
+Content-Type: application/json
+
+{
+  "username": "testuser2",
+  "phone": "123456789183",
+  "email": "testuser2@example.com",
+  "password": "123456",
+  "confPassword": "123456"
+}
+
+### 
+POST http://localhost:5000/login
+Content-Type: application/json
+
+{
+  "email" : "testuser2@example.com",
+  "password" : "123456"
+}
+
+###
+GET http://localhost:5000/token
+
+
+###
+DELETE http://localhost:5000/logout
