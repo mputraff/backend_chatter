@@ -4,8 +4,12 @@ import jwt from "jsonwebtoken";
 import db from "../config/db.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
+import { nanoid } from "nanoid";
 
 const router = express.Router();
+
+const unverifiedUsers = new Map();
+const id = nanoid();
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -23,13 +27,10 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    // Cek apakah email sudah terdaftar
-    const existingUser = await db`
-      SELECT * FROM users WHERE email = ${email}
-    `;
-
-    if (existingUser.length > 0) {
-      return res.status(409).json({ message: "Email sudah terdaftar" });
+    if (unverifiedUsers.has(email)) {
+      return res
+        .status(409)
+        .json({ message: "Akun dengan email ini sedang menunggu verifikasi." });
     }
 
     // Hash password
@@ -38,14 +39,14 @@ router.post("/register", async (req, res) => {
     const otp = crypto.randomInt(100000, 999999); // Kode OTP 6 digit
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Simpan user baru ke database
-    const result = await db`
-      INSERT INTO users (name, email, password, isVerified, otp, otpExpires)
-      VALUES (${name}, ${email}, ${hashedPassword}, ${false}, ${otp}, ${otpExpires})
-      RETURNING id
-    `;
-
-    const userId = result[0].id;
+    unverifiedUsers.set(email, {
+      id,
+      name,
+      email,
+      password: hashedPassword,
+      otp,
+      otpExpires,
+    });
 
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; color: #333;">
@@ -75,7 +76,9 @@ router.post("/register", async (req, res) => {
 
     res.status(201).json({
       message: "OTP sent successfully. Please check your email.",
-      userId,
+      data : {
+        email
+      }
     });
   } catch (error) {
     console.error("Register error:", error);
@@ -94,33 +97,28 @@ router.post("/verify-otp", async (req, res) => {
   }
 
   try {
-    const user = await db`
-      SELECT * FROM users WHERE email = ${email}
-    `;
+    const userData = unverifiedUsers.get(email);
 
-    if (user.length === 0) {
-      return res.status(404).json({ message: "Email tidak ditemukan." });
-    }
-
-    const currentUser = user[0];
-
-    if (currentUser.isVerified) {
-      return res.status(400).json({ message: "Email sudah terverifikasi." });
+    if (!userData) {
+      return res
+        .status(404)
+        .json({ message: "Email tidak ditemukan dalam data pending." });
     }
 
     if (
-      currentUser.otp !== parseInt(otp) ||
-      new Date() > new Date(currentUser.otpExpires)
+      userData.otp !== parseInt(otp) ||
+      Date.now() > userData.otpExpires
     ) {
       return res
         .status(400)
         .json({ message: "Kode OTP salah atau telah kadaluarsa." });
     }
+    
+    unverifiedUsers.delete(email);
 
     await db`
-      UPDATE users
-      SET isVerified = ${true}, otp = NULL, otpExpires = NULL
-      WHERE email = ${email}
+      INSERT INTO users (id, name, email, password, isVerified)
+      VALUES ( ${userData.id},${userData.name}, ${userData.email}, ${userData.password}, ${true})
     `;
 
     res.status(200).json({ message: "Email berhasil diverifikasi." });
