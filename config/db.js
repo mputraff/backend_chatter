@@ -1,21 +1,17 @@
-import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import {neon} from "@neondatabase/serverless";
 
 dotenv.config();
 
-const db = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME
-});
+const db = neon(process.env.DATABASE_URL); 
 
-try {
-  const connection = await db.getConnection();
-  console.log('Mysql connected');
-  connection.release();
-} catch (err) {
-  console.log('MySQL connection error:', err);
-}
+(async () => {
+  try {
+    const result = await db`SELECT version()`;
+    console.log('PostgreSQL connected:', result[0].version);
+  } catch (err) {
+    console.error('PostgreSQL connection error:', err);
+  }
+})();
 
 export default db;
