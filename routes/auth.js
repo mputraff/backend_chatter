@@ -8,6 +8,7 @@ import multer from "multer";
 import path from "path";
 import authenticateToken from "../middleware/authMiddleware.js";
 import { nanoid } from "nanoid";
+import { profile } from "console";
 
 const router = express.Router();
 
@@ -148,7 +149,7 @@ router.post("/verify-otp", async (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body; // Removed name and profile_picture from here
 
   try {
     const user = await db`
@@ -158,7 +159,9 @@ router.post("/login", async (req, res) => {
     if (user.length === 0) {
       return res
         .status(404)
-        .json({ message: "Email atau password tidak ditemukan" });
+        .json({ 
+          message: "Email atau password tidak ditemukan",    
+        });
     }
 
     const currentUser = user[0];
@@ -173,7 +176,18 @@ router.post("/login", async (req, res) => {
       expiresIn: "1h",
     });
 
-    res.json({ message: "Login Berhasil", token });
+    // Return the user data including profile_picture
+    res.json(
+      { 
+        message: "Login Berhasil",
+        data : {
+          id: currentUser.id, // Get id from currentUser
+          name: currentUser.name, // Get name from currentUser
+          email: currentUser.email, // Get email from currentUser
+          profile_picture: currentUser.profile_picture // Get profile_picture from currentUser
+        },
+        token 
+      });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ message: "Login Gagal", error: error.message });
