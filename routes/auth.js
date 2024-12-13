@@ -9,26 +9,38 @@ import path from "path";
 import authenticateToken from "../middleware/authMiddleware.js";
 import { nanoid } from "nanoid";
 import { profile } from "console";
+import { Storage } from '@google-cloud/storage'; // Import Google Cloud Storage
+
 
 const router = express.Router();
+const storage = new Storage(); // Inisialisasi Google Cloud Storage
+const bucketName = 'chatter-mppl'
 
 const unverifiedUsers = new Map();
 const id = nanoid();
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Folder untuk menyimpan file upload
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname)); // Menyimpan dengan nama unik
-  },
-});
-
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(), // Simpan file di memori
   limits: { fileSize: 1 * 1024 * 1024 }, // Maksimal 1MB
 });
+
+// Fungsi untuk mengupload file ke Google Cloud Storage
+const uploadFileToGCS = async (file) => {
+  const blob = storage.bucket(bucketName).file(file.originalname);
+  const blobStream = blob.createWriteStream({
+    resumable: false,
+    contentType: file.mimetype,
+  });
+
+  return new Promise((resolve, reject) => {
+    blobStream.on('error', (err) => reject(err));
+    blobStream.on('finish', () => {
+      // Mengembalikan URL file yang diupload
+      resolve(`https://storage.googleapis.com/${bucketName}/${file.originalname}`);
+    });
+    blobStream.end(file.buffer);
+  });
+};
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -223,8 +235,8 @@ router.get("/users", async (req, res) => {
 router.put('/edit-profile', authenticateToken, upload.fields([{ name: 'profile_picture' }, { name: 'header_picture' }]), async (req, res) => {
   try {
     const { name, password, id } = req.body;
-    const profilePicture = req.files['profile_picture'] ? req.files['profile_picture'][0].path : null;
-    const headerPicture = req.files['header_picture'] ? req.files['header_picture'][0].path : null;
+    const profilePictureFile = req.files['profile_picture'] ? req.files['profile_picture'][0] : null;
+    const headerPictureFile = req.files['header_picture'] ? req.files['header_picture'][0] : null;
 
     // Ambil ID pengguna dari token
     const userId = req.user.id;
@@ -254,14 +266,17 @@ router.put('/edit-profile', authenticateToken, upload.fields([{ name: 'profile_p
       updateValues.push(hashedPassword);
     }
 
-    if (profilePicture) {
+    // Upload ke Google Cloud Storage jika ada file
+    if (profilePictureFile) {
+      const profilePictureUrl = await uploadFileToGCS(profilePictureFile);
       updateFields.push(`profile_picture = $${updateFields.length + 1}`);
-      updateValues.push(profilePicture);
+      updateValues.push(profilePictureUrl);
     }
 
-    if (headerPicture) {
+    if (headerPictureFile) {
+      const headerPictureUrl = await uploadFileToGCS(headerPictureFile);
       updateFields.push(`header_picture = $${updateFields.length + 1}`);
-      updateValues.push(headerPicture);
+      updateValues.push(headerPictureUrl);
     }
 
     if (id) {
@@ -294,7 +309,6 @@ router.put('/edit-profile', authenticateToken, upload.fields([{ name: 'profile_p
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 
 
 export default router;

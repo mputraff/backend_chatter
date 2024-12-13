@@ -11,6 +11,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@google-cloud/storage": "^7.14.0",
     "@neondatabase/serverless": "^0.10.4",
     "backend": "file:",
     "bcrypt": "^5.1.1",
