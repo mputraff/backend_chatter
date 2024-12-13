@@ -4,12 +4,30 @@ import jwt from "jsonwebtoken";
 import db from "../config/db.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
+import multer from "multer";
+import path from "path";
+import authenticateToken from "../middleware/authMiddleware.js";
 import { nanoid } from "nanoid";
 
 const router = express.Router();
 
 const unverifiedUsers = new Map();
 const id = nanoid();
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/"); // Folder untuk menyimpan file upload
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname)); // Menyimpan dengan nama unik
+  },
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 1 * 1024 * 1024 }, // Maksimal 1MB
+});
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -76,9 +94,9 @@ router.post("/register", async (req, res) => {
 
     res.status(201).json({
       message: "OTP sent successfully. Please check your email.",
-      data : {
-        email
-      }
+      data: {
+        email,
+      },
     });
   } catch (error) {
     console.error("Register error:", error);
@@ -105,20 +123,19 @@ router.post("/verify-otp", async (req, res) => {
         .json({ message: "Email tidak ditemukan dalam data pending." });
     }
 
-    if (
-      userData.otp !== parseInt(otp) ||
-      Date.now() > userData.otpExpires
-    ) {
+    if (userData.otp !== parseInt(otp) || Date.now() > userData.otpExpires) {
       return res
         .status(400)
         .json({ message: "Kode OTP salah atau telah kadaluarsa." });
     }
-    
+
     unverifiedUsers.delete(email);
 
     await db`
       INSERT INTO users (id, name, email, password, isVerified)
-      VALUES ( ${userData.id},${userData.name}, ${userData.email}, ${userData.password}, ${true})
+      VALUES ( ${userData.id},${userData.name}, ${userData.email}, ${
+      userData.password
+    }, ${true})
     `;
 
     res.status(200).json({ message: "Email berhasil diverifikasi." });
@@ -139,7 +156,9 @@ router.post("/login", async (req, res) => {
     `;
 
     if (user.length === 0) {
-      return res.status(404).json({ message: "Email tidak ditemukan" });
+      return res
+        .status(404)
+        .json({ message: "Email atau password tidak ditemukan" });
     }
 
     const currentUser = user[0];
@@ -183,6 +202,60 @@ router.get("/users", async (req, res) => {
       message: "Gagal mengambil data pengguna.",
       error: error.message,
     });
+  }
+});
+
+router.put('/edit-profile', authenticateToken, upload.single('profile_picture'), async (req, res) => {
+  try {
+    const { name, password } = req.body;
+    const profilePicture = req.file ? req.file.path : null;
+
+    // Ambil ID pengguna dari token
+    const userId = req.user.id;
+
+    // Siapkan field dan nilai yang akan diperbarui
+    const updateFields = [];
+    const updateValues = [];
+
+    if (name) {
+      updateFields.push(`name = $${updateFields.length + 1}`);
+      updateValues.push(name);
+    }
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateFields.push(`password = $${updateFields.length + 1}`);
+      updateValues.push(hashedPassword);
+    }
+
+    if (profilePicture) {
+      updateFields.push(`profile_picture = $${updateFields.length + 1}`);
+      updateValues.push(profilePicture);
+    }
+
+    // Jika tidak ada field yang di-update, kembalikan respons
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    // Tambahkan userId untuk WHERE clause
+    updateValues.push(userId);
+
+    // Buat query SQL
+    const query = `
+      UPDATE users
+      SET ${updateFields.join(', ')}
+      WHERE id = $${updateValues.length}
+    `;
+
+    // Eksekusi query
+    await db(query, updateValues);
+
+    // Response sukses
+    res.status(200).json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
