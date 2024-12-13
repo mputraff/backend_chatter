@@ -219,6 +219,7 @@ router.get("/users", async (req, res) => {
     });
   }
 });
+
 router.put('/edit-profile', authenticateToken, upload.fields([{ name: 'profile_picture' }, { name: 'header_picture' }]), async (req, res) => {
   try {
     const { name, password, id } = req.body;
