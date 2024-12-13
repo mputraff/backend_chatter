@@ -184,7 +184,8 @@ router.post("/login", async (req, res) => {
           id: currentUser.id, // Get id from currentUser
           name: currentUser.name, // Get name from currentUser
           email: currentUser.email, // Get email from currentUser
-          profile_picture: currentUser.profile_picture // Get profile_picture from currentUser
+          profile_picture: currentUser.profile_picture, // Get profile_picture from currentUser
+          header_picture: currentUser.header_picture
         },
         token 
       });
@@ -218,14 +219,24 @@ router.get("/users", async (req, res) => {
     });
   }
 });
-
-router.put('/edit-profile', authenticateToken, upload.single('profile_picture'), async (req, res) => {
+router.put('/edit-profile', authenticateToken, upload.fields([{ name: 'profile_picture' }, { name: 'header_picture' }]), async (req, res) => {
   try {
-    const { name, password } = req.body;
-    const profilePicture = req.file ? req.file.path : null;
+    const { name, password, id } = req.body;
+    const profilePicture = req.files['profile_picture'] ? req.files['profile_picture'][0].path : null;
+    const headerPicture = req.files['header_picture'] ? req.files['header_picture'][0].path : null;
 
     // Ambil ID pengguna dari token
     const userId = req.user.id;
+
+    // Jika id baru diberikan, periksa apakah sudah ada yang menggunakannya
+    if (id) {
+      const existingUser = await db`
+        SELECT * FROM users WHERE id = ${id} AND id != ${userId}
+      `;
+      if (existingUser.length > 0) {
+        return res.status(400).json({ error: 'ID sudah digunakan oleh pengguna lain.' });
+      }
+    }
 
     // Siapkan field dan nilai yang akan diperbarui
     const updateFields = [];
@@ -245,6 +256,16 @@ router.put('/edit-profile', authenticateToken, upload.single('profile_picture'),
     if (profilePicture) {
       updateFields.push(`profile_picture = $${updateFields.length + 1}`);
       updateValues.push(profilePicture);
+    }
+
+    if (headerPicture) {
+      updateFields.push(`header_picture = $${updateFields.length + 1}`);
+      updateValues.push(headerPicture);
+    }
+
+    if (id) {
+      updateFields.push(`id = $${updateFields.length + 1}`);
+      updateValues.push(id);
     }
 
     // Jika tidak ada field yang di-update, kembalikan respons
@@ -272,5 +293,7 @@ router.put('/edit-profile', authenticateToken, upload.single('profile_picture'),
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+
 
 export default router;
