@@ -21,7 +21,7 @@ const id = nanoid();
 
 const upload = multer({
   storage: multer.memoryStorage(), // Simpan file di memori
-  limits: { fileSize: 1 * 1024 * 1024 }, // Maksimal 1MB
+  limits: { fileSize: 10 * 1024 * 1024 }, 
 });
 
 // Fungsi untuk mengupload file ke Google Cloud Storage
@@ -211,7 +211,7 @@ router.post("/login", async (req, res) => {
 router.get("/users", async (req, res) => {
   try {
     const users = await db`
-      SELECT id, name, email, isVerified FROM users
+      SELECT id, name, email, isVerified, profile_picture FROM users
     `;
 
     if (users.length === 0) {
@@ -326,7 +326,7 @@ router.post("/create-post", authenticateToken, upload.single('media'), async (re
 
     // Upload media file jika ada
     if (mediaFile) {
-      const allowedMimeTypes = ['image/jpeg', 'image/png', 'video/mp4', 'video/webm'];
+      const allowedMimeTypes = ['image/jpeg', 'image/png', 'video/mp4', 'video/webm', 'image/gif'];
       if (!allowedMimeTypes.includes(mediaFile.mimetype)) {
         return res.status(400).json({ message: "Unsupported file type." });
       }
@@ -368,5 +368,28 @@ router.post("/create-comment", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
+router.get("/posts", async (req, res) => {
+  const { page = 1, limit = 20 } = req.query; // Default pagination
+  const offset = (page - 1) * limit;
+
+  try {
+    const posts = await db`
+      SELECT p.id, p.content, p.media_url, p.created_at, u.name AS user_name, u.profile_picture, u.id AS user_id
+      FROM posts p
+      JOIN users u ON p.user_id = u.id
+      ORDER BY p.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    res.status(200).json({ message: "Posts fetched successfully", data: posts });
+  } catch (error) {
+    console.error("Error fetching posts:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+
+
 
 export default router;

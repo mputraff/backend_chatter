@@ -7,6 +7,12 @@ import cors from 'cors';
 dotenv.config();
 const app = express();
 
+app.use(cors({
+  origin: 'http://localhost:5173', 
+  methods: ['GET', 'POST', 'PUT', 'DELETE'], 
+  credentials: true, 
+}));
+
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
@@ -18,11 +24,9 @@ app.get("/", (req, res) => {
   res.send("Response traffic Success!");
 });
 
-app.use(cors({
-  origin : '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+app.post('/api/auth/create-post', (req, res) => {
+  res.json({ message: 'Post created successfully' });
+});
 
 const startServer = async () => {
 
