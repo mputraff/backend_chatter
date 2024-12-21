@@ -310,5 +310,58 @@ router.put('/edit-profile', authenticateToken, upload.fields([{ name: 'profile_p
   }
 });
 
+router.post("/create-post", authenticateToken, upload.single('media'), async (req, res) => {
+  const { content } = req.body;
+  const userId = req.user.id;
+  const mediaFile = req.file;
+
+  // Validasi input
+  if (!content && !mediaFile) {
+    return res.status(400).json({ message: "Content or media file is required." });
+  }
+
+  try {
+    let mediaUrl = null;
+
+    // Upload media file jika ada
+    if (mediaFile) {
+      mediaUrl = await uploadFileToGCS(mediaFile);
+    }
+
+    const post = await db`
+      INSERT INTO posts (user_id, content, media_url)
+      VALUES (${userId}, ${content}, ${mediaUrl})
+      RETURNING *
+    `;
+
+    res.status(201).json({ message: "Post created successfully", data: post[0] });
+  } catch (error) {
+    console.error("Error creating post:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/create-comment", authenticateToken, async (req, res) => {
+  const { post_id, content } = req.body;
+  const userId = req.user.id;
+
+  // Validasi input
+  if (!post_id || !content) {
+    return res.status(400).json({ message: "Post ID and content are required." });
+  }
+
+  try {
+    const comment = await db`
+      INSERT INTO comments (post_id, user_id, content)
+      VALUES (${post_id}, ${userId}, ${content})
+      RETURNING *
+    `;
+
+    res.status(201).json({ message: "Comment created successfully", data: comment[0] });
+  } catch (error) {
+    console.error("Error creating comment:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 
 export default router;
