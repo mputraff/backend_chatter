@@ -13,8 +13,17 @@ import { Storage } from '@google-cloud/storage'; // Import Google Cloud Storage
 
 
 const router = express.Router();
-const storage = new Storage(); // Inisialisasi Google Cloud Storage
-const bucketName = 'chatter-mppl'
+
+const googleCredentials = JSON.parse(
+  process.env.GOOGLE_APPLICATION_CREDENTIALS
+);
+
+const storage = new Storage({
+  credentials: googleCredentials,
+});
+
+const bucketName = storage.bucket(process.env.GCLOUD_STORAGE_BUCKET);
+
 
 const unverifiedUsers = new Map();
 const id = nanoid();
@@ -27,17 +36,18 @@ const upload = multer({
 // Fungsi untuk mengupload file ke Google Cloud Storage
 const uploadFileToGCS = async (file) => {
   const uniqueFileName = `${Date.now()}-${nanoid()}-${file.originalname}`;
-  const blob = storage.bucket(bucketName).file(file.originalname);
+  const bucket = storage.bucket(bucketName);
+  const blob = bucket.file(uniqueFileName); // Gunakan nama unik
   const blobStream = blob.createWriteStream({
     resumable: false,
     contentType: file.mimetype,
   });
 
   return new Promise((resolve, reject) => {
-    blobStream.on('error', (err) => reject(err));
-    blobStream.on('finish', () => {
-      // Mengembalikan URL file yang diupload
-      resolve(`https://storage.googleapis.com/${bucketName}/${file.originalname}`);
+    blobStream.on("error", (err) => reject(err));
+    blobStream.on("finish", () => {
+      const publicUrl = `https://storage.googleapis.com/${bucketName}/${uniqueFileName}`;
+      resolve(publicUrl); // URL file yang diunggah
     });
     blobStream.end(file.buffer);
   });
@@ -326,7 +336,7 @@ router.post("/create-post", authenticateToken, upload.single('media'), async (re
 
     // Upload media file jika ada
     if (mediaFile) {
-      const allowedMimeTypes = ['image/jpeg', 'image/png', 'video/mp4', 'video/webm', 'image/gif'];
+      const allowedMimeTypes = ["image/jpeg", "image/png", "video/mp4", "video/webm", "image/gif"];
       if (!allowedMimeTypes.includes(mediaFile.mimetype)) {
         return res.status(400).json({ message: "Unsupported file type." });
       }
