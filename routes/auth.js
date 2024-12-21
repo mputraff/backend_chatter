@@ -10,6 +10,9 @@ import authenticateToken from "../middleware/authMiddleware.js";
 import { nanoid } from "nanoid";
 import { profile } from "console";
 import { Storage } from '@google-cloud/storage'; // Import Google Cloud Storage
+import dotenv from "dotenv";
+
+dotenv.config();
 
 
 const router = express.Router();
