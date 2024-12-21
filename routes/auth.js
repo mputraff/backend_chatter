@@ -22,22 +22,21 @@ const storage = new Storage({
   credentials: googleCredentials,
 });
 
-const bucketName = storage.bucket(process.env.GCLOUD_STORAGE_BUCKET);
-
+const bucketName = "chatter-mppl";
+const bucket = storage.bucket(bucketName);
 
 const unverifiedUsers = new Map();
 const id = nanoid();
 
 const upload = multer({
-  storage: multer.memoryStorage(), // Simpan file di memori
+  storage: multer.memoryStorage(), 
   limits: { fileSize: 10 * 1024 * 1024 }, 
 });
 
-// Fungsi untuk mengupload file ke Google Cloud Storage
+
 const uploadFileToGCS = async (file) => {
   const uniqueFileName = `${Date.now()}-${nanoid()}-${file.originalname}`;
-  const bucket = storage.bucket(bucketName);
-  const blob = bucket.file(uniqueFileName); // Gunakan nama unik
+  const blob = bucket.file(uniqueFileName); 
   const blobStream = blob.createWriteStream({
     resumable: false,
     contentType: file.mimetype,
@@ -47,7 +46,7 @@ const uploadFileToGCS = async (file) => {
     blobStream.on("error", (err) => reject(err));
     blobStream.on("finish", () => {
       const publicUrl = `https://storage.googleapis.com/${bucketName}/${uniqueFileName}`;
-      resolve(publicUrl); // URL file yang diunggah
+      resolve(publicUrl); 
     });
     blobStream.end(file.buffer);
   });
