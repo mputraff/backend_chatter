@@ -26,6 +26,7 @@ const upload = multer({
 
 // Fungsi untuk mengupload file ke Google Cloud Storage
 const uploadFileToGCS = async (file) => {
+  const uniqueFileName = `${Date.now()}-${nanoid()}-${file.originalname}`;
   const blob = storage.bucket(bucketName).file(file.originalname);
   const blobStream = blob.createWriteStream({
     resumable: false,
@@ -325,6 +326,10 @@ router.post("/create-post", authenticateToken, upload.single('media'), async (re
 
     // Upload media file jika ada
     if (mediaFile) {
+      const allowedMimeTypes = ['image/jpeg', 'image/png', 'video/mp4', 'video/webm'];
+      if (!allowedMimeTypes.includes(mediaFile.mimetype)) {
+        return res.status(400).json({ message: "Unsupported file type." });
+      }
       mediaUrl = await uploadFileToGCS(mediaFile);
     }
 
