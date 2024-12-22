@@ -15,9 +15,7 @@ dotenv.config();
 
 const router = express.Router();
 
-const googleCredentials = JSON.parse(
-  process.env.GOOGLE_APPLICATION_CREDENTIALS
-);
+const googleCredentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
 const storage = new Storage({
   credentials: googleCredentials,
