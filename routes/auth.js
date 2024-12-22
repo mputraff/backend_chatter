@@ -8,10 +8,21 @@ import multer from "multer";
 import authenticateToken from "../middleware/authMiddleware.js";
 import { nanoid } from "nanoid";
 import { Storage } from '@google-cloud/storage'; 
+import dotenv from "dotenv";
+
+dotenv.config();
 
 
 const router = express.Router();
-const storage = new Storage(); 
+
+const googleCredentials = JSON.parse(
+  process.env.GOOGLE_APPLICATION_CREDENTIALS
+);
+
+const storage = new Storage({
+  credentials: googleCredentials,
+});
+
 const bucketName = 'chatter-mppl'
 
 const unverifiedUsers = new Map();
