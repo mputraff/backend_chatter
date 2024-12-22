@@ -15,15 +15,6 @@ dotenv.config();
 const router = express.Router();
 
 
-const storage = new Storage({
-  projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-  credentials: {
-    client_email: process.env.GOOGLE_CLOUD_CLIENT_EMAIL,
-    private_key: process.env.GOOGLE_CLOUD_PRIVATE_KEY,
-  },
-})
-
-const bucketName = 'chatter-mppl'
 
 const unverifiedUsers = new Map();
 const id = nanoid();
@@ -32,6 +23,16 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, 
 });
+
+const googleCredentials = JSON.parse(
+  process.env.GOOGLE_APPLICATION_CREDENTIALS
+);
+
+const storage = new Storage({
+  credentials: googleCredentials,
+});
+
+const bucketName = 'mama-care-bucket';
 
 const uploadFileToGCS = async (file) => {
   const uniqueFileName = `${Date.now()}-${nanoid()}-${file.originalname}`;
