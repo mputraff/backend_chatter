@@ -12,14 +12,16 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-
 const router = express.Router();
 
-const googleCredentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
 const storage = new Storage({
-  credentials: googleCredentials,
-});
+  projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
+  credentials: {
+    client_email: process.env.GOOGLE_CLOUD_CLIENT_EMAIL,
+    private_key: process.env.GOOGLE_CLOUD_PRIVATE_KEY,
+  },
+})
 
 const bucketName = 'chatter-mppl'
 
@@ -394,8 +396,6 @@ router.get("/posts", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
-
-
 
 
 export default router;
