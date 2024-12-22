@@ -34,7 +34,7 @@ const uploadFileToGCS = async (file) => {
     blobStream.on('error', (err) => reject(err));
     blobStream.on('finish', () => {
       // Mengembalikan URL file yang diupload
-      resolve(`https://storage.googleapis.com/${bucketName}/${file.originalname}`);
+      resolve(`https://storage.googleapis.com/${bucketName}/${uniqueFileName}`);
     });
     blobStream.end(file.buffer);
   });
