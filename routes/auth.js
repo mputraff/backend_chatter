@@ -206,7 +206,7 @@
             email: currentUser.email, 
             profile_picture: currentUser.profile_picture, 
             header_picture: currentUser.header_picture,
-            created_at: currentUser.created_at
+            created_at: currentUser.created_at 
           },
           token 
         });
