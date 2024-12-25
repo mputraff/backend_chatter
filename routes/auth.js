@@ -14,8 +14,6 @@ dotenv.config();
 
 const router = express.Router();
 
-
-
 const unverifiedUsers = new Map();
 const id = nanoid();
 
@@ -205,9 +203,10 @@ router.post("/login", async (req, res) => {
         data : {
           id: currentUser.id, // Get id from currentUser
           name: currentUser.name, // Get name from currentUser
-          email: currentUser.email, // Get email from currentUser
-          profile_picture: currentUser.profile_picture, // Get profile_picture from currentUser
-          header_picture: currentUser.header_picture
+          email: currentUser.email, 
+          profile_picture: currentUser.profile_picture, 
+          header_picture: currentUser.header_picture,
+          created_at: currentUser.created_at
         },
         token 
       });
