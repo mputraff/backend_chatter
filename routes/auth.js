@@ -204,9 +204,9 @@
             id: currentUser.id, 
             name: currentUser.name, 
             email: currentUser.email, 
+            created_at: currentUser.created_at,
             profile_picture: currentUser.profile_picture, 
-            header_picture: currentUser.header_picture,
-            created_at: currentUser.created_at 
+            header_picture: currentUser.header_picture, 
           },
           token 
         });
