@@ -210,6 +210,7 @@
           },
           token 
         });
+        console.log("User data:", currentUser);
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Login Gagal", error: error.message });
