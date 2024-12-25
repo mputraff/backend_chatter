@@ -458,6 +458,7 @@ router.post("/like-post", authenticateToken, async (req, res) => {
     res.status(201).json({ message: "Post liked successfully." });
   } catch (error) {
     console.error("Error liking post:", error);
+    console.log(error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
