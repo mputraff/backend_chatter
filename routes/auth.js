@@ -531,6 +531,8 @@ router.get("/notifications", authenticateToken, async (req, res) => {
       message: "Notifications fetched successfully", 
       data: notifications 
     });
+
+    console.log("Notifications:", notifications);
   } catch (error) {
     console.error("Error fetching notifications:", error);
     res.status(500).json({ error: "Internal Server Error" });
