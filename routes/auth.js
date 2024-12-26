@@ -243,32 +243,31 @@ router.put(
   upload.fields([{ name: "profile_picture" }, { name: "header_picture" }]),
   async (req, res) => {
     try {
-      const { newId, name, password } = req.body;
-      const profilePictureFile = req.files["profile_picture"]
-        ? req.files["profile_picture"][0]
-        : null;
-      const headerPictureFile = req.files["header_picture"]
-        ? req.files["header_picture"][0]
-        : null;
+      const { id: newId, name, password } = req.body;
+      const userId = req.user.id;
+      const profilePictureFile = req.files?.["profile_picture"]?.[0];
+      const headerPictureFile = req.files?.["header_picture"]?.[0];
 
-      // Ambil ID pengguna dari token
-      const currentUserId = req.user.id;
-
-      // Validasi ID baru (jika diberikan)
-      if (newId) {
+      // Validate new ID if provided
+      if (newId && newId !== userId) {
         const existingUser = await db`
           SELECT * FROM users WHERE id = ${newId}
         `;
         if (existingUser.length > 0) {
-          return res
-            .status(400)
-            .json({ error: "ID baru sudah digunakan oleh pengguna lain." });
+          return res.status(400).json({ 
+            error: "ID already in use by another user." 
+          });
         }
       }
 
-      // Siapkan field dan nilai yang akan diperbarui
-      const updateFields = [];
-      const updateValues = [];
+      let updateFields = [];
+      let updateValues = [];
+
+      // Add fields to update
+      if (newId) {
+        updateFields.push(`id = $${updateFields.length + 1}`);
+        updateValues.push(newId);
+      }
 
       if (name) {
         updateFields.push(`name = $${updateFields.length + 1}`);
@@ -281,7 +280,7 @@ router.put(
         updateValues.push(hashedPassword);
       }
 
-      // Upload ke Google Cloud Storage jika ada file
+      // Handle file uploads
       if (profilePictureFile) {
         const profilePictureUrl = await uploadFileToGCS(profilePictureFile);
         updateFields.push(`profile_picture = $${updateFields.length + 1}`);
@@ -294,47 +293,33 @@ router.put(
         updateValues.push(headerPictureUrl);
       }
 
-      // Jika ID baru diberikan, tambahkan ke field
-      if (newId) {
-        updateFields.push(`id = $${updateFields.length + 1}`);
-        updateValues.push(newId);
+      if (updateFields.length === 0) {
+        return res.status(400).json({ error: "No fields to update" });
       }
 
-      // Tambahkan ID pengguna saat ini untuk WHERE clause
-      updateValues.push(currentUserId);
+      // Add userId for WHERE clause
+      updateValues.push(userId);
 
-      // Buat query SQL
-      const query = `
+      // Execute update query
+      const updatedUser = await db`
         UPDATE users
-        SET ${updateFields.join(", ")}
+        SET ${db(updateFields.join(", "))}
         WHERE id = $${updateValues.length}
+        RETURNING id, name, profile_picture, header_picture
       `;
 
-      // Gunakan transaksi untuk memastikan konsistensi
-      await db.transaction(async (trx) => {
-        // Perbarui tabel pengguna
-        await trx(query, updateValues);
-
-        // Jika ID diperbarui, perbarui referensi di tabel lain
-        if (newId) {
-          await trx`
-            UPDATE posts SET user_id = ${newId} WHERE user_id = ${currentUserId}
-          `;
-          await trx`
-            UPDATE comments SET user_id = ${newId} WHERE user_id = ${currentUserId}
-          `;
-        }
+      // Return updated user data
+      res.status(200).json({
+        message: "Profile updated successfully",
+        updatedFields: updatedUser[0]
       });
 
-      // Response sukses
-      res.status(200).json({ message: "Profile updated successfully" });
     } catch (error) {
       console.error("Error updating profile:", error);
       res.status(500).json({ error: "Internal Server Error" });
     }
   }
 );
-
 
 router.post(
   "/create-post",
