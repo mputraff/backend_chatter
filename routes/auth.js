@@ -435,30 +435,73 @@ router.post("/like-post", authenticateToken, async (req, res) => {
   }
 
   try {
+    // Check if user has already liked this post
     const existingLike = await db`
-            SELECT * FROM likes WHERE post_id = ${post_id} AND user_id = ${userId}
-      `;
+      SELECT * FROM likes 
+      WHERE post_id = ${post_id} AND user_id = ${userId}
+    `;
 
     if (existingLike.length > 0) {
-      return res
-        .status(400)
-        .json({ message: "You have already liked this post." });
-    }
-
-    await db`
-        INSERT INTO likes (post_id, user_id)
-        VALUES (${post_id}, ${userId})
+      // If like exists, remove it (unlike)
+      await db`
+        DELETE FROM likes 
+        WHERE post_id = ${post_id} AND user_id = ${userId}
       `;
 
-    await db`
-            INSERT INTO notifications (user_id, post_id, type)
-            VALUES ((SELECT user_id FROM posts WHERE id = ${post_id}), ${post_id}, 'like')
-        `;
+      // Remove notification for unlike
+      await db`
+        DELETE FROM notifications 
+        WHERE post_id = ${post_id} 
+        AND user_id = (SELECT user_id FROM posts WHERE id = ${post_id})
+        AND type = 'like'
+        AND actor_id = ${userId}
+      `;
 
-    res.status(201).json({ message: "Post liked successfully." });
+      // Get updated like count
+      const likeCount = await db`
+        SELECT COUNT(*) as count 
+        FROM likes 
+        WHERE post_id = ${post_id}
+      `;
+
+      return res.status(200).json({ 
+        message: "Post unliked successfully.",
+        liked: false,
+        likeCount: likeCount[0].count
+      });
+    }
+
+    // Add new like
+    await db`
+      INSERT INTO likes (post_id, user_id)
+      VALUES (${post_id}, ${userId})
+    `;
+
+    // Create notification with actor_id
+    await db`
+      INSERT INTO notifications (user_id, post_id, type, actor_id)
+      VALUES (
+        (SELECT user_id FROM posts WHERE id = ${post_id}), 
+        ${post_id}, 
+        'like',
+        ${userId}
+      )
+    `;
+
+    // Get updated like count
+    const likeCount = await db`
+      SELECT COUNT(*) as count 
+      FROM likes 
+      WHERE post_id = ${post_id}
+    `;
+
+    res.status(201).json({ 
+      message: "Post liked successfully.",
+      liked: true,
+      likeCount: likeCount[0].count
+    });
   } catch (error) {
-    console.error("Error liking post:", error);
-    console.log(error);
+    console.error("Error handling like:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
@@ -468,18 +511,29 @@ router.get("/notifications", authenticateToken, async (req, res) => {
   const userId = req.user.id;
 
   try {
-      const notifications = await db`
-          SELECT n.id, n.type, n.created_at, p.content, p.media_url
-          FROM notifications n
-          JOIN posts p ON n.post_id = p.id
-          WHERE n.user_id = ${userId}
-          ORDER BY n.created_at DESC
-      `;
+    const notifications = await db`
+      SELECT 
+        n.id, 
+        n.type, 
+        n.created_at, 
+        p.content, 
+        p.media_url,
+        u.name as actor_name,
+        u.profile_picture as actor_profile_picture
+      FROM notifications n
+      JOIN posts p ON n.post_id = p.id
+      JOIN users u ON n.actor_id = u.id
+      WHERE n.user_id = ${userId}
+      ORDER BY n.created_at DESC
+    `;
 
-      res.status(200).json({ message: "Notifications fetched successfully", data: notifications });
+    res.status(200).json({ 
+      message: "Notifications fetched successfully", 
+      data: notifications 
+    });
   } catch (error) {
-      console.error("Error fetching notifications:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+    console.error("Error fetching notifications:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
