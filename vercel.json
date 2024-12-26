@@ -3,11 +3,6 @@
   "builds": [
     { "src": "server.js", "use": "@vercel/node" }
   ],
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "nodejs22.x"  
-    }
-  },
   "routes": [
     {
       "src": "/api/(.*)",
