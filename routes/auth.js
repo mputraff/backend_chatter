@@ -88,21 +88,21 @@ router.post("/register", async (req, res) => {
     });
 
     const htmlContent = `
-        <div style="font-family: Arial, sans-serif; color: #333;">
-          <div style="background-color: #f7f7f7; padding: 20px; text-align: center;">
-            <img src="https://res.cloudinary.com/dtonikyjm/image/upload/v1732804728/chatter-logo-panjang.jpg" alt="Chatter Logo" style="width: auto; height: 100px;">
-          </div>
-          <div style="padding: 20px; border: 1px solid #ddd; border-radius: 5px; margin-top: 10px;">
-            <p>Hi ${name},</p>
-            <p>Tinggal selangkah lagi untuk menyelesaikan proses, mohon konfirmasi dengan memasukkan kode OTP di bawah ini.</p>
-            <div style="text-align: center; font-size: 24px; font-weight: bold; padding: 20px; background-color: #f1f1f1; border-radius: 5px;">
-              ${otp}
+          <div style="font-family: Arial, sans-serif; color: #333;">
+            <div style="background-color: #f7f7f7; padding: 20px; text-align: center;">
+              <img src="https://res.cloudinary.com/dtonikyjm/image/upload/v1732804728/chatter-logo-panjang.jpg" alt="Chatter Logo" style="width: auto; height: 100px;">
             </div>
-            <p style="color: #666;">Kode ini hanya berlaku selama 10 menit. Jangan pernah membagikan kode OTP kepada siapa pun!</p>
-            <p>Jika ada pertanyaan atau membutuhkan bantuan, silakan hubungi call center kami di +62 821-1723-6590 atau melalui email di <a href="chatter0810@gmail.com" style="color: #1a73e8;">chatter@co.id</a>.</p>
+            <div style="padding: 20px; border: 1px solid #ddd; border-radius: 5px; margin-top: 10px;">
+              <p>Hi ${name},</p>
+              <p>Tinggal selangkah lagi untuk menyelesaikan proses, mohon konfirmasi dengan memasukkan kode OTP di bawah ini.</p>
+              <div style="text-align: center; font-size: 24px; font-weight: bold; padding: 20px; background-color: #f1f1f1; border-radius: 5px;">
+                ${otp}
+              </div>
+              <p style="color: #666;">Kode ini hanya berlaku selama 10 menit. Jangan pernah membagikan kode OTP kepada siapa pun!</p>
+              <p>Jika ada pertanyaan atau membutuhkan bantuan, silakan hubungi call center kami di +62 821-1723-6590 atau melalui email di <a href="chatter0810@gmail.com" style="color: #1a73e8;">chatter@co.id</a>.</p>
+            </div>
           </div>
-        </div>
-      `;
+        `;
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -153,11 +153,11 @@ router.post("/verify-otp", async (req, res) => {
     unverifiedUsers.delete(email);
 
     await db`
-        INSERT INTO users (id, name, email, password, isVerified)
-        VALUES ( ${userData.id},${userData.name}, ${userData.email}, ${
+          INSERT INTO users (id, name, email, password, isVerified)
+          VALUES ( ${userData.id},${userData.name}, ${userData.email}, ${
       userData.password
     }, ${true})
-      `;
+        `;
 
     res.status(200).json({ message: "Email berhasil diverifikasi." });
   } catch (error) {
@@ -173,8 +173,8 @@ router.post("/login", async (req, res) => {
 
   try {
     const user = await db`
-        SELECT * FROM users WHERE email = ${email}
-      `;
+          SELECT * FROM users WHERE email = ${email}
+        `;
 
     if (user.length === 0) {
       return res.status(404).json({
@@ -202,7 +202,7 @@ router.post("/login", async (req, res) => {
         created_at: currentUser.created_at,
         profile_picture: currentUser.profile_picture,
         header_picture: currentUser.header_picture,
-      }, 
+      },
       token,
     });
     console.log("User data:", currentUser);
@@ -215,8 +215,8 @@ router.post("/login", async (req, res) => {
 router.get("/users", async (req, res) => {
   try {
     const users = await db`
-        SELECT id, name, email, isVerified, profile_picture FROM users
-      `;
+          SELECT id, name, email, isVerified, profile_picture FROM users
+        `;
 
     if (users.length === 0) {
       return res
@@ -240,83 +240,139 @@ router.get("/users", async (req, res) => {
 router.put(
   "/edit-profile",
   authenticateToken,
-  upload.fields([{ name: "profile_picture" }, { name: "header_picture" }]),
+  upload.fields([
+    { name: "profile_picture", maxCount: 1 },
+    { name: "header_picture", maxCount: 1 },
+  ]),
   async (req, res) => {
-    try {
-      const { id: newId, name, password } = req.body;
-      const userId = req.user.id;
-      const profilePictureFile = req.files?.["profile_picture"]?.[0];
-      const headerPictureFile = req.files?.["header_picture"]?.[0];
+    const { id, name, password } = req.body;
+    const userId = req.user.id; // Ambil ID dari token
+    const profilePicture = req.files?.profile_picture?.[0];
+    const headerPicture = req.files?.header_picture?.[0];
 
-      // Validate new ID if provided
-      if (newId && newId !== userId) {
-        const existingUser = await db`
-          SELECT * FROM users WHERE id = ${newId}
+    try {
+      // Cek apakah pengguna ada
+      const existingUser = await db`
+        SELECT * FROM users WHERE id = ${userId}
+      `;
+
+      if (existingUser.length === 0) {
+        return res.status(404).json({ error: "User not found." });
+      }
+
+      // Menyimpan updates
+      const updates = {};
+
+      // Validasi dan proses perubahan ID
+      if (id) {
+        // Cek apakah ID baru sudah digunakan
+        const existingUserWithNewId = await db`
+          SELECT * FROM users WHERE id = ${id}
         `;
-        if (existingUser.length > 0) {
-          return res.status(400).json({ 
-            error: "ID already in use by another user." 
+
+        if (
+          existingUserWithNewId.length > 0 &&
+          existingUserWithNewId[0].id !== userId
+        ) {
+          return res.status(409).json({ error: "ID already exists." });
+        }
+
+        // Lakukan update secara bertahap dengan multiple query
+        try {
+          // Hapus record lama di tabel terkait
+          await db`
+            DELETE FROM likes 
+            WHERE user_id = ${userId}
+          `;
+
+          await db`
+            DELETE FROM posts 
+            WHERE user_id = ${userId}
+          `;
+
+          await db`
+            DELETE FROM comments 
+            WHERE user_id = ${userId}
+          `;
+
+          await db`
+            DELETE FROM notifications 
+            WHERE user_id = ${userId} OR actor_id = ${userId}
+          `;
+
+          updates.id = id;
+        } catch (deleteError) {
+          console.error("Error deleting related records:", deleteError);
+          return res.status(500).json({
+            error: "Failed to delete related records",
+            details: deleteError.message,
           });
         }
       }
 
-      let updateFields = [];
-      let updateValues = [];
-
-      // Add fields to update
-      if (newId) {
-        updateFields.push(`id = $${updateFields.length + 1}`);
-        updateValues.push(newId);
-      }
-
       if (name) {
-        updateFields.push(`name = $${updateFields.length + 1}`);
-        updateValues.push(name);
+        updates.name = name;
       }
 
       if (password) {
         const hashedPassword = await bcrypt.hash(password, 10);
-        updateFields.push(`password = $${updateFields.length + 1}`);
-        updateValues.push(hashedPassword);
+        updates.password = hashedPassword;
       }
 
-      // Handle file uploads
-      if (profilePictureFile) {
-        const profilePictureUrl = await uploadFileToGCS(profilePictureFile);
-        updateFields.push(`profile_picture = $${updateFields.length + 1}`);
-        updateValues.push(profilePictureUrl);
+      if (profilePicture) {
+        const profileUrl = await uploadFileToGCS(profilePicture);
+        updates.profile_picture = profileUrl;
       }
 
-      if (headerPictureFile) {
-        const headerPictureUrl = await uploadFileToGCS(headerPictureFile);
-        updateFields.push(`header_picture = $${updateFields.length + 1}`);
-        updateValues.push(headerPictureUrl);
+      if (headerPicture) {
+        const headerUrl = await uploadFileToGCS(headerPicture);
+        updates.header_picture = headerUrl;
       }
 
-      if (updateFields.length === 0) {
-        return res.status(400).json({ error: "No fields to update" });
+      // Tambahkan timestamp update
+      updates.updated_at = new Date();
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No updates provided." });
       }
 
-      // Add userId for WHERE clause
-      updateValues.push(userId);
+      // Konstruksi query update dinamis
+      const updateFields = Object.keys(updates)
+        .map((key, index) => `${key} = $${index + 1}`)
+        .join(", ");
 
-      // Execute update query
-      const updatedUser = await db`
+      const updateValues = [...Object.values(updates), userId];
+
+      // Query update user
+      const updateQuery = `
         UPDATE users
-        SET ${db(updateFields.join(", "))}
+        SET ${updateFields}
         WHERE id = $${updateValues.length}
-        RETURNING id, name, profile_picture, header_picture
+        RETURNING id, name, email, profile_picture, header_picture, updated_at
       `;
 
-      // Return updated user data
+      // Eksekusi query update
+      const updatedUserResult = await db(updateQuery, updateValues);
+
+      // Perbarui token jika ID berubah
+      let newToken = null;
+      if (id && id !== userId) {
+        newToken = jwt.sign({ id: id }, process.env.JWT_SECRET, {
+          expiresIn: "1h",
+        });
+      }
+
       res.status(200).json({
         message: "Profile updated successfully",
-        updatedFields: updatedUser[0]
+        data: updatedUserResult[0],
+        ...(newToken && { token: newToken }),
       });
-
     } catch (error) {
       console.error("Error updating profile:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+      res.status(500).json({
+        error: "Failed to update profile",
+        details: error.message,
+      });
     }
   }
 );
@@ -356,10 +412,10 @@ router.post(
       }
 
       const post = await db`
-        INSERT INTO posts (user_id, content, media_url)
-        VALUES (${userId}, ${content}, ${mediaUrl})
-        RETURNING *
-      `;
+          INSERT INTO posts (user_id, content, media_url)
+          VALUES (${userId}, ${content}, ${mediaUrl})
+          RETURNING *
+        `;
 
       res
         .status(201)
@@ -384,10 +440,10 @@ router.post("/create-comment", authenticateToken, async (req, res) => {
 
   try {
     const comment = await db`
-        INSERT INTO comments (post_id, user_id, content)
-        VALUES (${post_id}, ${userId}, ${content})
-        RETURNING *
-      `;
+          INSERT INTO comments (post_id, user_id, content)
+          VALUES (${post_id}, ${userId}, ${content})
+          RETURNING *
+        `;
 
     res
       .status(201)
@@ -404,12 +460,12 @@ router.get("/posts", async (req, res) => {
 
   try {
     const posts = await db`
-        SELECT p.id, p.content, p.media_url, p.created_at, u.name AS user_name, u.profile_picture, u.id AS user_id
-        FROM posts p
-        JOIN users u ON p.user_id = u.id
-        ORDER BY p.created_at DESC
-        LIMIT ${limit} OFFSET ${offset}
-      `;
+          SELECT p.id, p.content, p.media_url, p.created_at, u.name AS user_name, u.profile_picture, u.id AS user_id
+          FROM posts p
+          JOIN users u ON p.user_id = u.id
+          ORDER BY p.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `;
 
     res
       .status(200)
@@ -431,68 +487,68 @@ router.post("/like-post", authenticateToken, async (req, res) => {
   try {
     // Check if user has already liked this post
     const existingLike = await db`
-      SELECT * FROM likes 
-      WHERE post_id = ${post_id} AND user_id = ${userId}
-    `;
+        SELECT * FROM likes 
+        WHERE post_id = ${post_id} AND user_id = ${userId}
+      `;
 
     if (existingLike.length > 0) {
       // If like exists, remove it (unlike)
       await db`
-        DELETE FROM likes 
-        WHERE post_id = ${post_id} AND user_id = ${userId}
-      `;
+          DELETE FROM likes 
+          WHERE post_id = ${post_id} AND user_id = ${userId}
+        `;
 
       // Remove notification for unlike
       await db`
-        DELETE FROM notifications 
-        WHERE post_id = ${post_id} 
-        AND user_id = (SELECT user_id FROM posts WHERE id = ${post_id})
-        AND type = 'like'
-        AND actor_id = ${userId}
-      `;
+          DELETE FROM notifications 
+          WHERE post_id = ${post_id} 
+          AND user_id = (SELECT user_id FROM posts WHERE id = ${post_id})
+          AND type = 'like'
+          AND actor_id = ${userId}
+        `;
 
       // Get updated like count
       const likeCount = await db`
-        SELECT COUNT(*) as count 
-        FROM likes 
-        WHERE post_id = ${post_id}
-      `;
+          SELECT COUNT(*) as count 
+          FROM likes 
+          WHERE post_id = ${post_id}
+        `;
 
-      return res.status(200).json({ 
+      return res.status(200).json({
         message: "Post unliked successfully.",
         liked: false,
-        likeCount: likeCount[0].count
+        likeCount: likeCount[0].count,
       });
     }
 
     // Add new like
     await db`
-      INSERT INTO likes (post_id, user_id)
-      VALUES (${post_id}, ${userId})
-    `;
+        INSERT INTO likes (post_id, user_id)
+        VALUES (${post_id}, ${userId})
+      `;
 
     // Create notification with actor_id
     await db`
-      INSERT INTO notifications (user_id, post_id, type, actor_id)
-      VALUES (
-        (SELECT user_id FROM posts WHERE id = ${post_id}), 
-        ${post_id}, 
-        'like',
-        ${userId}
-      )
-    `;
+        INSERT INTO notifications (user_id, post_id, type, actor_id)
+        VALUES (
+          (SELECT user_id FROM posts WHERE id = ${post_id}), 
+          ${post_id}, 
+          'like',
+          ${userId}
+        )
+      `;
 
     // Get updated like count
     const likeCount = await db`
-      SELECT COUNT(*) as count 
-      FROM likes 
-      WHERE post_id = ${post_id}
-    `;
+        SELECT COUNT(*) as count 
+        FROM likes 
+        WHERE post_id = ${post_id}
+      `;
 
-    res.status(201).json({ 
+    res.status(201).json({
       message: "Post liked successfully.",
       liked: true,
-      likeCount: likeCount[0].count
+      likeCount: likeCount[0].count,
     });
   } catch (error) {
     console.error("Error handling like:", error);
@@ -506,32 +562,31 @@ router.get("/notifications", authenticateToken, async (req, res) => {
 
   try {
     const notifications = await db`
-      SELECT 
-        n.id, 
-        n.type, 
-        n.created_at, 
-        p.content, 
-        p.media_url,
-        u.name as actor_name,
-        u.profile_picture as actor_profile_picture
-      FROM notifications n
-      JOIN posts p ON n.post_id = p.id
-      JOIN users u ON n.actor_id = u.id
-      WHERE n.user_id = ${userId}
-      ORDER BY n.created_at DESC
-    `;
+        SELECT 
+          n.id, 
+          n.type, 
+          n.created_at, 
+          p.content, 
+          p.media_url,
+          u.name as actor_name,
+          u.profile_picture as actor_profile_picture
+        FROM notifications n
+        JOIN posts p ON n.post_id = p.id
+        JOIN users u ON n.actor_id = u.id
+        WHERE n.user_id = ${userId}
+        ORDER BY n.created_at DESC
+      `;
 
-    res.status(200).json({ 
-      message: "Notifications fetched successfully", 
-      data: notifications 
+    res.status(200).json({
+      message: "Notifications fetched successfully",
+      data: notifications,
     });
 
-    console.log(notifications)
+    console.log(notifications);
   } catch (error) {
     console.error("Error fetching notifications:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
-
 
 export default router;
