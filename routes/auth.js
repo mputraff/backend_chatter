@@ -243,8 +243,7 @@ router.put(
   upload.fields([{ name: "profile_picture" }, { name: "header_picture" }]),
   async (req, res) => {
     try {
-      const { id } = req.user;
-      const { name, password } = req.body;
+      const { newId, name, password } = req.body;
       const profilePictureFile = req.files["profile_picture"]
         ? req.files["profile_picture"][0]
         : null;
@@ -253,17 +252,17 @@ router.put(
         : null;
 
       // Ambil ID pengguna dari token
-      const userId = req.user.id;
+      const currentUserId = req.user.id;
 
-      // Jika id baru diberikan, periksa apakah sudah ada yang menggunakannya
-      if (id) {
+      // Validasi ID baru (jika diberikan)
+      if (newId) {
         const existingUser = await db`
-          SELECT * FROM users WHERE id = ${id} AND id != ${userId}
+          SELECT * FROM users WHERE id = ${newId}
         `;
         if (existingUser.length > 0) {
           return res
             .status(400)
-            .json({ error: "ID sudah digunakan oleh pengguna lain." });
+            .json({ error: "ID baru sudah digunakan oleh pengguna lain." });
         }
       }
 
@@ -295,18 +294,14 @@ router.put(
         updateValues.push(headerPictureUrl);
       }
 
-      if (id) {
+      // Jika ID baru diberikan, tambahkan ke field
+      if (newId) {
         updateFields.push(`id = $${updateFields.length + 1}`);
-        updateValues.push(id);
+        updateValues.push(newId);
       }
 
-      // Jika tidak ada field yang di-update, kembalikan respons
-      if (updateFields.length === 0) {
-        return res.status(400).json({ error: "No fields to update" });
-      }
-
-      // Tambahkan userId untuk WHERE clause
-      updateValues.push(userId);
+      // Tambahkan ID pengguna saat ini untuk WHERE clause
+      updateValues.push(currentUserId);
 
       // Buat query SQL
       const query = `
@@ -315,8 +310,21 @@ router.put(
         WHERE id = $${updateValues.length}
       `;
 
-      // Eksekusi query
-      await db(query, updateValues);
+      // Gunakan transaksi untuk memastikan konsistensi
+      await db.transaction(async (trx) => {
+        // Perbarui tabel pengguna
+        await trx(query, updateValues);
+
+        // Jika ID diperbarui, perbarui referensi di tabel lain
+        if (newId) {
+          await trx`
+            UPDATE posts SET user_id = ${newId} WHERE user_id = ${currentUserId}
+          `;
+          await trx`
+            UPDATE comments SET user_id = ${newId} WHERE user_id = ${currentUserId}
+          `;
+        }
+      });
 
       // Response sukses
       res.status(200).json({ message: "Profile updated successfully" });
@@ -326,6 +334,7 @@ router.put(
     }
   }
 );
+
 
 router.post(
   "/create-post",
@@ -532,7 +541,7 @@ router.get("/notifications", authenticateToken, async (req, res) => {
       data: notifications 
     });
 
-    console.log("Notifications:", notifications);
+    console.log(notifications)
   } catch (error) {
     console.error("Error fetching notifications:", error);
     res.status(500).json({ error: "Internal Server Error" });
