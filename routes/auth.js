@@ -202,7 +202,7 @@ router.post("/login", async (req, res) => {
         created_at: currentUser.created_at,
         profile_picture: currentUser.profile_picture,
         header_picture: currentUser.header_picture,
-      },
+      }, 
       token,
     });
     console.log("User data:", currentUser);
