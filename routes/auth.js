@@ -454,6 +454,34 @@ router.post("/create-comment", authenticateToken, async (req, res) => {
   }
 });
 
+router.get("/comment/:postId", async (req, res) => {
+  const {postId} = req.params;
+
+  try {
+    const comments = await db`
+      SELECT 
+        c.id, 
+        c.content, 
+        c.created_at, 
+        u.id AS user_id, 
+        u.name AS user_name, 
+        u.profile_picture
+      FROM comments c
+      JOIN users u ON c.user_id = u.id
+      WHERE c.post_id = ${postId}
+      ORDER BY c.created_at ASC
+    `;
+
+    res.status(200).json({
+      message : "Comments fetched successfully",
+      data : comments,
+    });
+  } catch (error) {
+    console.error("Error fetching comments:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+})
+
 router.get("/posts", async (req, res) => {
   const { page = 1, limit = 20 } = req.query; // Default pagination
   const offset = (page - 1) * limit;
