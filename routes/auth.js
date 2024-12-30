@@ -440,10 +440,28 @@ router.post("/create-comment", authenticateToken, async (req, res) => {
 
   try {
     const comment = await db`
-          INSERT INTO comments (post_id, user_id, content)
-          VALUES (${post_id}, ${userId}, ${content})
-          RETURNING *
-        `;
+      INSERT INTO comments (post_id, user_id, content)
+      VALUES (${post_id}, ${userId}, ${content})
+      RETURNING *
+    `;
+
+    // Cari pemilik post
+    const postOwner = await db`
+      SELECT user_id FROM posts WHERE id = ${post_id}
+    `;
+
+    // Hanya buat notifikasi jika yang mengomentari bukan pemilik post
+    if (postOwner[0].user_id !== userId) {
+      await db`
+        INSERT INTO notifications (user_id, post_id, type, actor_id)
+        VALUES (
+          ${postOwner[0].user_id}, 
+          ${post_id}, 
+          'comment',
+          ${userId}
+        )
+      `;
+    }
 
     res
       .status(201)
@@ -609,8 +627,6 @@ router.get("/notifications", authenticateToken, async (req, res) => {
       message: "Notifications fetched successfully",
       data: notifications,
     });
-
-    console.log(notifications);
   } catch (error) {
     console.error("Error fetching notifications:", error);
     res.status(500).json({ error: "Internal Server Error" });
